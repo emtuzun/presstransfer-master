@@ -1,8 +1,5 @@
 import sql
 import asyncio
-import sys
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton
 
 HEADER = 8
 HOST = "0.0.0.0"
@@ -11,26 +8,31 @@ FORMAT = "utf-8"
 ADDR = (HOST, PORT)
 DISCONNECT_MESSAGE = "!DISCONNECT"
 
-
-
-# Subclass QMainWindow to customize your application's main window
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-
-        self.setWindowTitle("My App")
-
-        button = QPushButton("Press Me!")
-
-        self.setMinimumSize(QSize(400, 300))
-
-        # Set the central widget of the Window.
-        self.setCentralWidget(button)
-
-
-app = QApplication(sys.argv)
-
-window = MainWindow()
-window.show()
-
-app.exec()
+async def handle(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
+    while True:
+        try:
+            print(writer.get_extra_info('peername'))
+            data = await reader.read(100)
+            message = data.decode()
+            addr = writer.get_extra_info('peername')
+            print(f"Received {message!r} from {addr!r}")
+            print(f"Send: {message!r}")
+            writer.write(data)
+            await writer.drain()
+            if message == DISCONNECT_MESSAGE:
+                print("Close the connection")
+                writer.close()
+                await writer.wait_closed()
+                break
+        except:
+            print("Close the connection")
+            writer.close()
+            await writer.wait_closed()
+            break
+async def main():
+    server = await asyncio.start_server(handle, '127.0.0.1', 8888)
+    addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
+    print(f'Serving on {addrs}')
+    async with server:
+        await server.serve_forever()
+asyncio.run(main())
